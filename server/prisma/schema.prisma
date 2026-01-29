@@ -1,0 +1,233 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  avatarUrl    String?
+  title        String?
+
+  // Relations
+  gamesAsPlayer      GamePlayer[]
+  achievements       UserAchievement[]
+  puzzleProgress     PuzzleProgress[]
+  dailyChallengeScores DailyChallengeScore[]
+  stats              UserStats?
+  invitesSent        GameInvite[]      @relation("InviteFrom")
+  invitesReceived    GameInvite[]      @relation("InviteTo")
+
+  @@index([email])
+  @@index([username])
+}
+
+model UserStats {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  totalGames      Int      @default(0)
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  draws           Int      @default(0)
+  totalScore      Int      @default(0)
+  validVertices   Int      @default(0)
+  invalidVertices Int      @default(0)
+  loopsCompleted  Int      @default(0)
+  rareVertices    Int      @default(0)
+  favoriteGameMode String?
+  
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Game {
+  id          String   @id @default(uuid())
+  mode        String   // GameMode enum as string
+  status      String   // GameStatus enum as string
+  winnerId    String?
+  
+  settings    Json     // GameSettings object
+  boardState  Json     // Current board state
+  gameHistory Json     // Turn-by-turn history for replay
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+  
+  // Relations
+  players     GamePlayer[]
+
+  @@index([status])
+  @@index([mode])
+  @@index([createdAt])
+}
+
+model GamePlayer {
+  id        String   @id @default(uuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  turnOrder Int
+  finalScore Int     @default(0)
+  isWinner  Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, userId])
+  @@index([gameId])
+  @@index([userId])
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  type        String   @unique // AchievementType enum as string
+  name        String
+  description String
+  iconUrl     String
+  points      Int
+  requirement Int
+  
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  userAchievements UserAchievement[]
+
+  @@index([type])
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  
+  progress      Int      @default(0)
+  unlockedAt    DateTime?
+  
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
+
+model PuzzleLevel {
+  id               Int      @id @default(autoincrement())
+  name             String
+  description      String
+  difficulty       String   // 'tutorial' | 'intermediate' | 'advanced' | 'expert'
+  requiredCards    Json     // ParticleCard[]
+  goalDescription  String
+  targetScore      Int
+  starThresholds   Json     // [number, number, number]
+  physicsExplanation String @db.Text
+  hints            Json     // string[]
+  
+  createdAt        DateTime @default(now())
+  
+  // Relations
+  progress         PuzzleProgress[]
+
+  @@index([difficulty])
+}
+
+model PuzzleProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  levelId     Int
+  level       PuzzleLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  
+  completed   Boolean  @default(false)
+  stars       Int      @default(0)
+  bestScore   Int      @default(0)
+  attempts    Int      @default(0)
+  completedAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, levelId])
+  @@index([userId])
+  @@index([levelId])
+}
+
+model DailyChallenge {
+  id           String   @id @default(uuid())
+  date         String   @unique // YYYY-MM-DD format
+  seed         Int
+  startingCards Json    // ParticleCard[]
+  description  String
+  expiresAt    DateTime
+  
+  createdAt    DateTime @default(now())
+  
+  // Relations
+  scores       DailyChallengeScore[]
+
+  @@index([date])
+  @@index([expiresAt])
+}
+
+model DailyChallengeScore {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId String
+  challenge   DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  score       Int
+  completedAt DateTime @default(now())
+
+  @@unique([userId, challengeId])
+  @@index([challengeId])
+  @@index([score])
+}
+
+model GameInvite {
+  id        String   @id @default(uuid())
+  fromUserId String
+  fromUser   User     @relation("InviteFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("InviteTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  lobbyCode  String
+  
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  
+  @@index([toUserId])
+  @@index([lobbyCode])
+}
+
+model Leaderboard {
+  id        String   @id @default(uuid())
+  type      String   // LeaderboardType enum as string
+  gameMode  String?  // Optional, for mode-specific leaderboards
+  period    String?  // 'daily', 'weekly', 'monthly', 'all-time'
+  
+  entries   Json     // LeaderboardEntry[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, gameMode, period])
+  @@index([type])
+}

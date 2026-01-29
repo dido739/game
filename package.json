@@ -1,0 +1,38 @@
+{
+  "name": "tutti-quantum",
+  "version": "1.0.0",
+  "description": "Complete online implementation of Tutti Quantum - A particle physics diagram-building board game",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "build": "npm run build --workspace=client && npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "build:server": "npm run build --workspace=server",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "install:all": "npm install && npm install --workspace=client && npm install --workspace=server && npm install --workspace=shared"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "tutti-quantum",
+    "board-game",
+    "particle-physics",
+    "multiplayer",
+    "educational"
+  ],
+  "author": "",
+  "license": "MIT"
+}
