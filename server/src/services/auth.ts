@@ -9,6 +9,27 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 const SALT_ROUNDS = 10;
 
 /**
+ * Converts Prisma user to shared User type
+ */
+function toUser(user: {
+  id: string;
+  username: string;
+  email: string;
+  createdAt: Date;
+  avatarUrl: string | null;
+  title: string | null;
+}): User {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    createdAt: user.createdAt,
+    avatarUrl: user.avatarUrl ?? undefined,
+    title: user.title ?? undefined
+  };
+}
+
+/**
  * Registers a new user
  */
 export async function registerUser(data: RegisterRequest): Promise<AuthResponse> {
@@ -35,7 +56,7 @@ export async function registerUser(data: RegisterRequest): Promise<AuthResponse>
   const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
 
   // Create user
-  const user = await prisma.user.create({
+  const prismaUser = await prisma.user.create({
     data: {
       username: data.username,
       email: data.email,
@@ -55,10 +76,10 @@ export async function registerUser(data: RegisterRequest): Promise<AuthResponse>
   });
 
   // Generate token
-  const token = generateToken(user.id);
+  const token = generateToken(prismaUser.id);
 
   return {
-    user,
+    user: toUser(prismaUser),
     token
   };
 }
@@ -99,7 +120,7 @@ export async function loginUser(data: LoginRequest): Promise<AuthResponse> {
   const token = generateToken(user.id);
 
   return {
-    user: userWithoutPassword,
+    user: toUser(userWithoutPassword),
     token
   };
 }
@@ -108,11 +129,11 @@ export async function loginUser(data: LoginRequest): Promise<AuthResponse> {
  * Generates a JWT token
  */
 function generateToken(userId: string): AuthToken {
-  const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const token = jwt.sign({ userId }, JWT_SECRET as string, { expiresIn: JWT_EXPIRES_IN as string });
   
   // Calculate expiration date
   const expiresAt = new Date();
-  const daysMatch = JWT_EXPIRES_IN.match(/(\d+)d/);
+  const daysMatch = (JWT_EXPIRES_IN as string).match(/(\d+)d/);
   if (daysMatch) {
     expiresAt.setDate(expiresAt.getDate() + parseInt(daysMatch[1]));
   } else {
@@ -130,7 +151,7 @@ function generateToken(userId: string): AuthToken {
  */
 export function verifyToken(token: string): string {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET as string) as { userId: string };
     return decoded.userId;
   } catch (error) {
     throw new Error('Invalid or expired token');
@@ -153,7 +174,7 @@ export async function getUserById(userId: string): Promise<User | null> {
     }
   });
 
-  return user;
+  return user ? toUser(user) : null;
 }
 
 /**
@@ -176,5 +197,5 @@ export async function updateUserProfile(
     }
   });
 
-  return user;
+  return toUser(user);
 }
